@@ -1,14 +1,18 @@
 import { useState } from 'react';
 import { useCrossroadsStore } from '../store/useCrossroadsStore';
 import { normalizedWeights } from '../utils/scoring';
-import { Button, Card, Label, SectionTitle, TextInput } from './ui';
+import { DIVORCE_EXAMPLE_BANNER, DIVORCE_PRESET_ID } from '../data/divorcePreset';
+import { Badge, Button, Card, Label, SectionTitle, TextInput } from './ui';
 
 export function ValuesElicitation() {
   const values = useCrossroadsStore((s) => s.values);
+  const activePreset = useCrossroadsStore((s) => s.activePreset);
   const addValue = useCrossroadsStore((s) => s.addValue);
   const updateValueWeight = useCrossroadsStore((s) => s.updateValueWeight);
   const updateValueName = useCrossroadsStore((s) => s.updateValueName);
   const removeValue = useCrossroadsStore((s) => s.removeValue);
+  const loadPreset = useCrossroadsStore((s) => s.loadPreset);
+  const clearModel = useCrossroadsStore((s) => s.clearModel);
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -24,6 +28,53 @@ export function ValuesElicitation() {
 
   return (
     <div className="space-y-6">
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-slate-800 dark:text-slate-200">Example: divorce / affair-recovery</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Loads a full pre-filled model — values, four scenarios, probabilities, and 20-year projections — to
+              explore the tool before building your own.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            {activePreset === DIVORCE_PRESET_ID ? (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  if (window.confirm('Clear this model and start blank? Nothing outside this device is affected.')) {
+                    clearModel();
+                  }
+                }}
+              >
+                Clear model
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  if (
+                    values.length === 0 ||
+                    window.confirm('Load the example model? This replaces your current values, scenarios, and probabilities.')
+                  ) {
+                    loadPreset(DIVORCE_PRESET_ID);
+                  }
+                }}
+              >
+                Load example
+              </Button>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      {activePreset === DIVORCE_PRESET_ID && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-900/30">
+          <Badge tone="warn">Example</Badge>
+          <p className="text-sm text-amber-900 dark:text-amber-200">{DIVORCE_EXAMPLE_BANNER}</p>
+        </div>
+      )}
+
       <Card>
         <SectionTitle
           title="What matters to you?"
@@ -88,7 +139,7 @@ export function ValuesElicitation() {
                   <input
                     type="range"
                     min={0}
-                    max={10}
+                    max={100}
                     step={1}
                     value={v.weight}
                     onChange={(e) => updateValueWeight(v.id, Number(e.target.value))}

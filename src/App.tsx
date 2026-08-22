@@ -9,11 +9,15 @@ import { ResultsSummary } from './components/ResultsSummary';
 import { EvidenceJournal } from './components/EvidenceJournal';
 import { CommitmentContract } from './components/CommitmentContract';
 import { TimelineChart } from './components/TimelineChart';
+import { LongHorizonProjections } from './components/LongHorizonProjections';
+import { PlainLanguageSummary } from './components/PlainLanguageSummary';
+import { PrintExport } from './components/PrintExport';
+import { AboutPage } from './components/AboutPage';
 import { Button } from './components/ui';
 import { downloadStateAsJson, parseImportedState } from './utils/storage';
 import type { CrossroadsState } from './types';
 
-const TABS = [
+const BASE_TABS = [
   { id: 'values', label: 'Values' },
   { id: 'scenarios', label: 'Scenarios' },
   { id: 'probabilities', label: 'Probabilities' },
@@ -23,13 +27,27 @@ const TABS = [
   { id: 'timeline', label: 'Timeline' },
 ] as const;
 
-type TabId = (typeof TABS)[number]['id'];
+const TRAJECTORIES_TAB = { id: 'trajectories', label: 'Trajectories' } as const;
+
+const TAIL_TABS = [
+  { id: 'summary', label: 'Summary' },
+  { id: 'export', label: 'Export' },
+  { id: 'about', label: 'About' },
+] as const;
+
+type TabId =
+  | (typeof BASE_TABS)[number]['id']
+  | (typeof TRAJECTORIES_TAB)['id']
+  | (typeof TAIL_TABS)[number]['id'];
 
 function AppShell() {
   const [tab, setTab] = useState<TabId>('values');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importState = useCrossroadsStore((s) => s.importState);
   const resetAll = useCrossroadsStore((s) => s.resetAll);
+  const hasTrajectories = useCrossroadsStore((s) => s.customTimelineData !== null);
+
+  const tabs = hasTrajectories ? [...BASE_TABS, TRAJECTORIES_TAB, ...TAIL_TABS] : [...BASE_TABS, ...TAIL_TABS];
 
   function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -56,7 +74,7 @@ function AppShell() {
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <header className="border-b border-slate-200 bg-white print:hidden dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto max-w-5xl px-4 py-4 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -80,7 +98,7 @@ function AppShell() {
           </div>
         </div>
         <nav className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 pb-2 sm:px-6">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
@@ -96,7 +114,7 @@ function AppShell() {
         </nav>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 print:max-w-none print:px-0 print:py-0">
         {tab === 'values' && <ValuesElicitation />}
         {tab === 'scenarios' && <ScenarioGrid />}
         {tab === 'probabilities' && <ProbabilityPanel />}
@@ -104,6 +122,10 @@ function AppShell() {
         {tab === 'journal' && <EvidenceJournal />}
         {tab === 'contract' && <CommitmentContract />}
         {tab === 'timeline' && <TimelineChart />}
+        {tab === 'trajectories' && <LongHorizonProjections />}
+        {tab === 'summary' && <PlainLanguageSummary />}
+        {tab === 'export' && <PrintExport />}
+        {tab === 'about' && <AboutPage />}
       </main>
     </div>
   );

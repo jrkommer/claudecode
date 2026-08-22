@@ -1,17 +1,21 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
-  Contract,
+  ContractDraftFields,
   CrossroadsState,
+  CustomTimelineData,
   EditFieldType,
   JournalEntry,
+  PresetId,
   Scenario,
 } from '../types';
 import { newId } from '../utils/id';
 import { favoredScenarioForEdit } from '../utils/bias';
 import { leadingScenarioId } from '../utils/scoring';
+import { DIVORCE_PRESET_ID, DIVORCE_SCENARIOS, DIVORCE_TIMELINE, DIVORCE_VALUES } from '../data/divorcePreset';
 
 const DEFAULT_COOLING_OFF_HOURS = 72;
+const AMENDMENT_COOLING_OFF_HOURS = 72;
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -37,12 +41,24 @@ interface StoreActions {
   addJournalEntry: (entry: Omit<JournalEntry, 'id' | 'createdAt'>) => void;
   removeJournalEntry: (id: string) => void;
 
-  startContract: (patch: Pick<Contract, 'decisionSummary' | 'chosenScenarioId' | 'commitmentText' | 'conditions' | 'coolingOffHours'>) => void;
-  updateContractDraft: (patch: Partial<Pick<Contract, 'decisionSummary' | 'chosenScenarioId' | 'commitmentText' | 'conditions'>>) => void;
+  startContract: (patch: ContractDraftFields & { coolingOffHours?: number }) => void;
+  updateContractDraft: (patch: Partial<ContractDraftFields>) => void;
   beginCoolingOff: (coolingOffHours?: number) => void;
   returnContractToDraft: () => void;
   lockContract: () => void;
   revokeContract: () => void;
+  requestAmendment: () => void;
+  updatePendingAmendment: (patch: Partial<ContractDraftFields>) => void;
+  applyAmendment: () => void;
+  cancelAmendment: () => void;
+
+  startTrial: (days: number, startedAt?: string) => void;
+  clearTrial: () => void;
+
+  updateTimelinePoint: (chart: 'adult' | 'kids', seriesKey: string, year: number, value: number) => void;
+
+  loadPreset: (presetId: PresetId) => void;
+  clearModel: () => void;
 
   resetAll: () => void;
   importState: (state: CrossroadsState) => void;
@@ -66,8 +82,40 @@ function initialState(): CrossroadsState {
     initialLeaderScenarioId: null,
     journal: [],
     contract: null,
+    trial: null,
+    activePreset: null,
+    customTimelineData: null,
     createdAt: nowIso(),
     updatedAt: nowIso(),
+  };
+}
+
+// Fields that reset when loading a preset or clearing the model, without
+// touching the safety screen (already passed) or account-level metadata.
+function blankModelFields(): Pick<
+  CrossroadsState,
+  | 'values'
+  | 'scenarios'
+  | 'editHistory'
+  | 'resultsFirstViewedAt'
+  | 'initialLeaderScenarioId'
+  | 'journal'
+  | 'contract'
+  | 'trial'
+  | 'activePreset'
+  | 'customTimelineData'
+> {
+  return {
+    values: [],
+    scenarios: [],
+    editHistory: [],
+    resultsFirstViewedAt: null,
+    initialLeaderScenarioId: null,
+    journal: [],
+    contract: null,
+    trial: null,
+    activePreset: null,
+    customTimelineData: null,
   };
 }
 
@@ -259,15 +307,18 @@ export const useCrossroadsStore = create<CrossroadsStore>()(
       startContract: (patch) =>
         set(() => {
           const created = nowIso();
+          const { coolingOffHours, ...draft } = patch;
           return {
             contract: {
               id: newId(),
-              ...patch,
-              coolingOffHours: patch.coolingOffHours || DEFAULT_COOLING_OFF_HOURS,
+              ...draft,
+              coolingOffHours: coolingOffHours || DEFAULT_COOLING_OFF_HOURS,
               createdAt: created,
               coolingOffEndsAt: created,
               status: 'draft',
               history: [{ timestamp: created, action: 'Draft created' }],
+              pendingAmendment: null,
+              amendmentCoolingOffEndsAt: null,
             },
             updatedAt: nowIso(),
           };
@@ -350,13 +401,151 @@ export const useCrossroadsStore = create<CrossroadsStore>()(
           };
         }),
 
+      requestAmendment: () =>
+        set((state) => {
+          if (!state.contract || state.contract.status !== 'locked') return state;
+          const ts = nowIso();
+          const ends = new Date(Date.now() + AMENDMENT_COOLING_OFF_HOURS * 3600 * 1000).toISOString();
+          const { decisionSummary, chosenScenarioId, commitmentText, conditions, ruleDeadline } = state.contract;
+          return {
+            contract: {
+              ...state.contract,
+              status: 'amending',
+              pendingAmendment: { decisionSummary, chosenScenarioId, commitmentText, conditions, ruleDeadline },
+              amendmentCoolingOffEndsAt: ends,
+              history: [
+                ...state.contract.history,
+                { timestamp: ts, action: `Amendment requested — ${AMENDMENT_COOLING_OFF_HOURS}h cooling-off started` },
+              ],
+            },
+            updatedAt: nowIso(),
+          };
+        }),
+
+      updatePendingAmendment: (patch) =>
+        set((state) => {
+          if (!state.contract || state.contract.status !== 'amending' || !state.contract.pendingAmendment) {
+            return state;
+          }
+          return {
+            contract: {
+              ...state.contract,
+              pendingAmendment: { ...state.contract.pendingAmendment, ...patch },
+            },
+            updatedAt: nowIso(),
+          };
+        }),
+
+      applyAmendment: () =>
+        set((state) => {
+          if (!state.contract || state.contract.status !== 'amending' || !state.contract.pendingAmendment) {
+            return state;
+          }
+          if (
+            state.contract.amendmentCoolingOffEndsAt &&
+            new Date(state.contract.amendmentCoolingOffEndsAt).getTime() > Date.now()
+          ) {
+            return state;
+          }
+          const ts = nowIso();
+          return {
+            contract: {
+              ...state.contract,
+              ...state.contract.pendingAmendment,
+              status: 'locked',
+              pendingAmendment: null,
+              amendmentCoolingOffEndsAt: null,
+              history: [...state.contract.history, { timestamp: ts, action: 'Amendment applied' }],
+            },
+            updatedAt: nowIso(),
+          };
+        }),
+
+      cancelAmendment: () =>
+        set((state) => {
+          if (!state.contract || state.contract.status !== 'amending') return state;
+          const ts = nowIso();
+          return {
+            contract: {
+              ...state.contract,
+              status: 'locked',
+              pendingAmendment: null,
+              amendmentCoolingOffEndsAt: null,
+              history: [...state.contract.history, { timestamp: ts, action: 'Amendment cancelled' }],
+            },
+            updatedAt: nowIso(),
+          };
+        }),
+
+      startTrial: (days, startedAt) =>
+        set(() => ({
+          trial: { startedAt: startedAt ?? nowIso(), days },
+          updatedAt: nowIso(),
+        })),
+
+      clearTrial: () =>
+        set(() => ({
+          trial: null,
+          updatedAt: nowIso(),
+        })),
+
+      updateTimelinePoint: (chart, seriesKey, year, value) =>
+        set((state) => {
+          if (!state.customTimelineData) return state;
+          const series = state.customTimelineData[chart][seriesKey];
+          if (!series) return state;
+          const updated = series.map((p) => (p.year === year ? { ...p, value } : p));
+          const next: CustomTimelineData = {
+            ...state.customTimelineData,
+            [chart]: { ...state.customTimelineData[chart], [seriesKey]: updated },
+          };
+          return { customTimelineData: next, updatedAt: nowIso() };
+        }),
+
+      loadPreset: (presetId) =>
+        set((state) => {
+          if (presetId !== DIVORCE_PRESET_ID) return state;
+          const values = DIVORCE_VALUES.map((v) => ({ ...v, id: newId() }));
+          const valueIdByIndex = values.map((v) => v.id);
+          const scenarios: Scenario[] = DIVORCE_SCENARIOS.map((seed) => {
+            const scores: Record<string, number> = {};
+            seed.scores.forEach((score, i) => {
+              scores[valueIdByIndex[i]] = score;
+            });
+            return {
+              id: newId(),
+              name: seed.name,
+              description: seed.description,
+              category: 'relationship',
+              scores,
+              probability: seed.probability,
+              branch: seed.branch,
+              probabilityHint: seed.probabilityHint,
+            };
+          });
+          return {
+            ...blankModelFields(),
+            values,
+            scenarios,
+            activePreset: presetId,
+            customTimelineData: DIVORCE_TIMELINE,
+            updatedAt: nowIso(),
+          };
+        }),
+
+      clearModel: () =>
+        set(() => ({
+          ...blankModelFields(),
+          updatedAt: nowIso(),
+        })),
+
       resetAll: () => set(() => initialState()),
 
       importState: (imported) => set(() => imported),
     }),
     {
       name: 'crossroads-decision-store',
-      version: 1,
+      version: 2,
     },
   ),
 );

@@ -1,5 +1,5 @@
 import { useCrossroadsStore } from '../store/useCrossroadsStore';
-import { analyzeBias, MIN_ATTRIBUTED_EDITS } from '../utils/bias';
+import { analyzeBias, analyzeRecentStreak, MIN_ATTRIBUTED_EDITS } from '../utils/bias';
 import { Badge, Card, SectionTitle } from './ui';
 
 export function BiasDetector() {
@@ -7,8 +7,11 @@ export function BiasDetector() {
   const scenarios = useCrossroadsStore((s) => s.scenarios);
   const initialLeaderScenarioId = useCrossroadsStore((s) => s.initialLeaderScenarioId);
   const resultsFirstViewedAt = useCrossroadsStore((s) => s.resultsFirstViewedAt);
+  const activePreset = useCrossroadsStore((s) => s.activePreset);
 
   const analysis = analyzeBias(editHistory, scenarios, initialLeaderScenarioId);
+  const confidant = activePreset === 'divorce-recovery' ? 'your therapist' : 'someone you trust';
+  const streak = analyzeRecentStreak(editHistory, scenarios, confidant);
 
   if (!resultsFirstViewedAt) return null;
 
@@ -18,6 +21,13 @@ export function BiasDetector() {
         title="Edit-direction bias check"
         subtitle="After you first view results, Crossroads quietly tracks which scenario your subsequent edits tend to favor. Chasing a predetermined answer by nudging scores after the fact is a common — and very human — way decisions get rationalized rather than reasoned through."
       />
+
+      {streak && (
+        <div className="mb-4 space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-900/30">
+          <Badge tone="warn">Recent trend</Badge>
+          <p className="text-sm text-amber-900 dark:text-amber-200">{streak.message}</p>
+        </div>
+      )}
 
       {analysis.totalPostViewEdits === 0 ? (
         <p className="text-sm text-slate-500 dark:text-slate-400">

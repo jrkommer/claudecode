@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useCrossroadsStore } from '../store/useCrossroadsStore';
-import { formatCountdown, formatDateTime } from '../utils/date';
+import { formatCountdown, formatDate, formatDateTime } from '../utils/date';
 import { Badge, Button, Card, Label, SectionTitle, TextArea, TextInput } from './ui';
 
 const COOLING_OFF_PRESETS = [
@@ -18,16 +18,21 @@ export function CommitmentContract() {
   const returnContractToDraft = useCrossroadsStore((s) => s.returnContractToDraft);
   const lockContract = useCrossroadsStore((s) => s.lockContract);
   const revokeContract = useCrossroadsStore((s) => s.revokeContract);
+  const requestAmendment = useCrossroadsStore((s) => s.requestAmendment);
+  const updatePendingAmendment = useCrossroadsStore((s) => s.updatePendingAmendment);
+  const applyAmendment = useCrossroadsStore((s) => s.applyAmendment);
+  const cancelAmendment = useCrossroadsStore((s) => s.cancelAmendment);
 
   const [decisionSummary, setDecisionSummary] = useState('');
   const [chosenScenarioId, setChosenScenarioId] = useState('');
   const [commitmentText, setCommitmentText] = useState('');
   const [conditions, setConditions] = useState('');
+  const [ruleDeadline, setRuleDeadline] = useState('');
   const [coolingOffHours, setCoolingOffHours] = useState(72);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    if (!contract || contract.status !== 'cooling_off') return;
+    if (!contract || (contract.status !== 'cooling_off' && contract.status !== 'amending')) return;
     const id = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(id);
   }, [contract]);
@@ -94,6 +99,18 @@ export function CommitmentContract() {
             />
           </div>
           <div>
+            <Label htmlFor="c-deadline">Decision rule date (optional)</Label>
+            <TextInput
+              id="c-deadline"
+              type="date"
+              value={ruleDeadline}
+              onChange={(e) => setRuleDeadline(e.target.value)}
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              "If by this date, the log shows X, I will Y" — the date your rule refers to.
+            </p>
+          </div>
+          <div>
             <Label htmlFor="c-cooling">Cooling-off period before this can be locked in</Label>
             <select
               id="c-cooling"
@@ -110,7 +127,14 @@ export function CommitmentContract() {
           </div>
           <Button
             onClick={() =>
-              startContract({ decisionSummary, chosenScenarioId, commitmentText, conditions, coolingOffHours })
+              startContract({
+                decisionSummary,
+                chosenScenarioId,
+                commitmentText,
+                conditions,
+                ruleDeadline: ruleDeadline || null,
+                coolingOffHours,
+              })
             }
             disabled={!decisionSummary.trim() || !chosenScenarioId || !commitmentText.trim()}
           >
@@ -123,6 +147,9 @@ export function CommitmentContract() {
 
   const chosenScenario = scenarios.find((s) => s.id === contract.chosenScenarioId);
   const coolingOffDone = new Date(contract.coolingOffEndsAt).getTime() <= now;
+  const amendmentCoolingOffDone = contract.amendmentCoolingOffEndsAt
+    ? new Date(contract.amendmentCoolingOffEndsAt).getTime() <= now
+    : false;
 
   return (
     <div className="space-y-6">
@@ -135,7 +162,7 @@ export function CommitmentContract() {
                 ? 'good'
                 : contract.status === 'revoked'
                   ? 'bad'
-                  : contract.status === 'cooling_off'
+                  : contract.status === 'cooling_off' || contract.status === 'amending'
                     ? 'warn'
                     : 'neutral'
             }
@@ -172,6 +199,15 @@ export function CommitmentContract() {
                 onChange={(e) => updateContractDraft({ conditions: e.target.value })}
               />
             </div>
+            <div>
+              <Label htmlFor="d-deadline">Decision rule date</Label>
+              <TextInput
+                id="d-deadline"
+                type="date"
+                value={contract.ruleDeadline ?? ''}
+                onChange={(e) => updateContractDraft({ ruleDeadline: e.target.value || null })}
+              />
+            </div>
             <p className="text-sm text-slate-600 dark:text-slate-400">
               Chosen scenario: <strong>{chosenScenario?.name ?? 'unknown'}</strong> &middot; Cooling-off:{' '}
               {contract.coolingOffHours}h
@@ -188,6 +224,9 @@ export function CommitmentContract() {
             </p>
             {contract.conditions && (
               <p className="text-sm text-slate-500 dark:text-slate-400">Conditions: {contract.conditions}</p>
+            )}
+            {contract.ruleDeadline && (
+              <p className="text-sm text-slate-500 dark:text-slate-400">Decision rule date: {formatDate(contract.ruleDeadline)}</p>
             )}
             <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-900/30">
               <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
@@ -218,22 +257,79 @@ export function CommitmentContract() {
             {contract.conditions && (
               <p className="text-sm text-slate-500 dark:text-slate-400">Conditions: {contract.conditions}</p>
             )}
+            {contract.ruleDeadline && (
+              <p className="text-sm text-slate-500 dark:text-slate-400">Decision rule date: {formatDate(contract.ruleDeadline)}</p>
+            )}
             <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-4 dark:border-emerald-700 dark:bg-emerald-900/30">
               <p className="text-sm font-medium text-emerald-900 dark:text-emerald-200">
                 Locked in. This is a personal commitment device, not a legal or binding contract — you can still
-                revoke it, but doing so is a deliberate act.
+                change or revoke it, but doing so is a deliberate act.
               </p>
             </div>
-            <Button
-              variant="danger"
-              onClick={() => {
-                if (window.confirm('Revoke this locked commitment? This should be a deliberate choice, not an impulsive one.')) {
-                  revokeContract();
-                }
-              }}
-            >
-              Revoke commitment
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => requestAmendment()}>
+                Request changes (72h cooling-off)
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => {
+                  if (window.confirm('Revoke this locked commitment? This should be a deliberate choice, not an impulsive one.')) {
+                    revokeContract();
+                  }
+                }}
+              >
+                Revoke commitment
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {contract.status === 'amending' && contract.pendingAmendment && (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+              <h4 className="mb-2 text-sm font-semibold text-slate-500 dark:text-slate-400">
+                Original (locked {formatDateTime(contract.createdAt)})
+              </h4>
+              <p className="mb-2 text-sm text-slate-700 dark:text-slate-300">{contract.commitmentText}</p>
+              {contract.conditions && <p className="text-xs text-slate-500 dark:text-slate-400">Conditions: {contract.conditions}</p>}
+              {contract.ruleDeadline && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">By: {formatDate(contract.ruleDeadline)}</p>
+              )}
+            </div>
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-900/30">
+              <h4 className="mb-2 text-sm font-semibold text-amber-800 dark:text-amber-300">Pending changes</h4>
+              <TextArea
+                rows={3}
+                value={contract.pendingAmendment.commitmentText}
+                onChange={(e) => updatePendingAmendment({ commitmentText: e.target.value })}
+                className="mb-2"
+              />
+              <TextArea
+                rows={2}
+                placeholder="Conditions"
+                value={contract.pendingAmendment.conditions}
+                onChange={(e) => updatePendingAmendment({ conditions: e.target.value })}
+                className="mb-2"
+              />
+              <TextInput
+                type="date"
+                value={contract.pendingAmendment.ruleDeadline ?? ''}
+                onChange={(e) => updatePendingAmendment({ ruleDeadline: e.target.value || null })}
+              />
+              <p className="mt-3 text-xs text-amber-800 dark:text-amber-300">
+                {amendmentCoolingOffDone
+                  ? 'Cooling-off complete — you can apply these changes.'
+                  : `Applies in ${formatCountdown(contract.amendmentCoolingOffEndsAt!)}.`}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button onClick={() => applyAmendment()} disabled={!amendmentCoolingOffDone}>
+                  Apply changes
+                </Button>
+                <Button variant="secondary" onClick={() => cancelAmendment()}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
           </div>
         )}
 

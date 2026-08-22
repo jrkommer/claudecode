@@ -5,13 +5,20 @@ export interface ValueItem {
   weight: number; // raw weight, normalized to 100 for display/calc
 }
 
+// Optional grouping used only by presets that frame the decision as a
+// binary fork (e.g. stay vs. leave) even though more than two scenarios
+// exist. Scenarios without a branch are treated as ungrouped.
+export type ScenarioBranch = 'stay' | 'leave';
+
 export interface Scenario {
   id: string;
   name: string;
-  description?: string;
+  description?: string; // shown as an info-icon tooltip next to the name
   category: string; // maps into base-rate hint categories
   scores: Record<string, number>; // valueId -> 1-10
   probability: number; // 0-100, user assigned
+  branch?: ScenarioBranch;
+  probabilityHint?: string; // overrides the category base-rate hint when set
 }
 
 export type EditFieldType = 'value-weight' | 'scenario-score' | 'scenario-probability';
@@ -33,24 +40,34 @@ export interface JournalEntry {
   date: string; // ISO date the evidence pertains to (user-set)
   createdAt: string; // ISO timestamp of entry creation
   scenarioId?: string;
+  entryType?: string; // structured category, options depend on active preset
   title: string;
   content: string;
   tags: string[];
 }
 
-export type ContractStatus = 'draft' | 'cooling_off' | 'locked' | 'revoked';
+export type ContractStatus = 'draft' | 'cooling_off' | 'locked' | 'amending' | 'revoked';
 
-export interface Contract {
-  id: string;
+export interface ContractDraftFields {
   decisionSummary: string;
   chosenScenarioId: string | null;
   commitmentText: string;
   conditions: string;
+  ruleDeadline: string | null; // ISO date: "if by this date, the log shows X..."
+}
+
+export interface Contract extends ContractDraftFields {
+  id: string;
   coolingOffHours: number;
   createdAt: string;
   coolingOffEndsAt: string;
   status: ContractStatus;
   history: { timestamp: string; action: string }[];
+  // While status === 'amending', the fields above stay as originally locked
+  // ("the original always displayed alongside") and the in-progress edit
+  // lives here until the cooling-off period elapses and it's applied.
+  pendingAmendment: ContractDraftFields | null;
+  amendmentCoolingOffEndsAt: string | null;
 }
 
 export interface SafetyScreenAnswers {
@@ -61,6 +78,26 @@ export interface SafetyScreenAnswers {
   acknowledgedResources: boolean;
 }
 
+export interface Trial {
+  startedAt: string;
+  days: number;
+}
+
+export interface TimelineWaypoint {
+  year: number;
+  value: number; // 0-10 scale, matches expected-value scoring elsewhere
+}
+
+export interface CustomTimelineData {
+  adult: Record<string, TimelineWaypoint[]>; // seriesKey -> waypoints
+  kids: Record<string, TimelineWaypoint[]>;
+  adultSeriesLabels: Record<string, string>;
+  kidsSeriesLabels: Record<string, string>;
+  calloutAnnotation?: string;
+}
+
+export type PresetId = 'divorce-recovery';
+
 export interface CrossroadsState {
   safety: SafetyScreenAnswers;
   values: ValueItem[];
@@ -70,6 +107,9 @@ export interface CrossroadsState {
   initialLeaderScenarioId: string | null;
   journal: JournalEntry[];
   contract: Contract | null;
+  trial: Trial | null;
+  activePreset: PresetId | null;
+  customTimelineData: CustomTimelineData | null;
   createdAt: string;
   updatedAt: string;
 }

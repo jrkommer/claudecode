@@ -91,11 +91,22 @@ export function ScenarioGrid() {
                   </th>
                   {scenarios.map((sc) => (
                     <th key={sc.id} className="border-b border-slate-200 p-2 text-left dark:border-slate-700">
-                      <TextInput
-                        value={sc.name}
-                        onChange={(e) => updateScenarioMeta(sc.id, { name: e.target.value })}
-                        className="mb-1 font-semibold"
-                      />
+                      <div className="mb-1 flex items-center gap-1.5">
+                        <TextInput
+                          value={sc.name}
+                          onChange={(e) => updateScenarioMeta(sc.id, { name: e.target.value })}
+                          className="font-semibold"
+                        />
+                        {sc.description && (
+                          <span
+                            title={sc.description}
+                            className="flex h-5 w-5 shrink-0 cursor-help items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-600 dark:bg-slate-600 dark:text-slate-200"
+                            aria-label={sc.description}
+                          >
+                            i
+                          </span>
+                        )}
+                      </div>
                       <button
                         onClick={() => removeScenario(sc.id)}
                         className="text-xs text-rose-500 hover:underline"

@@ -101,3 +101,62 @@ export function analyzeBias(
 }
 
 export { MIN_ATTRIBUTED_EDITS, DOMINANCE_THRESHOLD };
+
+const STREAK_THRESHOLD = 4;
+
+export interface StreakAnalysis {
+  streak: number;
+  groupLabel: string; // e.g. "leaving", "staying", or a scenario name
+  message: string;
+}
+
+// Groups a scenario by its branch when one is set (e.g. stay/leave), or by
+// its own id otherwise — so the streak check works whether or not the
+// scenarios represent a binary fork.
+function groupKeyFor(scenario: Scenario | undefined): string | null {
+  if (!scenario) return null;
+  return scenario.branch ?? scenario.id;
+}
+
+function groupLabelFor(scenario: Scenario | undefined): string | null {
+  if (!scenario) return null;
+  if (scenario.branch === 'stay') return 'staying';
+  if (scenario.branch === 'leave') return 'leaving';
+  return `"${scenario.name}"`;
+}
+
+// Looks at the trailing run of attributable post-view edits (most recent
+// first) and flags it when the last STREAK_THRESHOLD+ of them all favor the
+// same branch/scenario, regardless of overall share. Never blocks edits —
+// purely informational. `confidant` lets callers phrase the closing
+// question for the domain (e.g. "your therapist" vs "someone you trust").
+export function analyzeRecentStreak(
+  editHistory: EditEvent[],
+  scenarios: Scenario[],
+  confidant = 'someone you trust',
+): StreakAnalysis | null {
+  const scenarioById = new Map(scenarios.map((s) => [s.id, s]));
+  const attributed = editHistory
+    .filter((e) => e.postView && e.favoredScenarioId)
+    .slice()
+    .reverse(); // most recent first
+
+  if (attributed.length === 0) return null;
+
+  const firstGroup = groupKeyFor(scenarioById.get(attributed[0].favoredScenarioId!));
+  if (!firstGroup) return null;
+
+  let streak = 0;
+  for (const edit of attributed) {
+    const group = groupKeyFor(scenarioById.get(edit.favoredScenarioId!));
+    if (group !== firstGroup) break;
+    streak += 1;
+  }
+
+  if (streak < STREAK_THRESHOLD) return null;
+
+  const label = groupLabelFor(scenarioById.get(attributed[0].favoredScenarioId!)) ?? 'one option';
+  const message = `Your last ${streak} edits all moved the model toward ${label}. This may be clarity arriving — or a thumb on the scale. Two questions: Is new evidence driving these edits, or the same feeling? Worth naming to ${confidant}.`;
+
+  return { streak, groupLabel: label, message };
+}
