@@ -9,12 +9,22 @@ export function PrintExport() {
   const values = useCrossroadsStore((s) => s.values);
   const scenarios = useCrossroadsStore((s) => s.scenarios);
   const journal = useCrossroadsStore((s) => s.journal);
+  const assumptions = useCrossroadsStore((s) => s.assumptions);
+  const premortems = useCrossroadsStore((s) => s.premortems);
   const contract = useCrossroadsStore((s) => s.contract);
   const isLive = useCrossroadsStore((s) => s.liveRefreshEnabled);
   const refreshNow = useCrossroadsStore((s) => s.refreshNow);
 
-  const snap = useSnapshot({ values, scenarios, journal, contract });
-  const { values: snapValues, scenarios: snapScenarios, journal: snapJournal, contract: snapContract } = snap;
+  const snap = useSnapshot({ values, scenarios, journal, assumptions, premortems, contract });
+  const {
+    values: snapValues,
+    scenarios: snapScenarios,
+    journal: snapJournal,
+    assumptions: snapAssumptions,
+    premortems: snapPremortems,
+    contract: snapContract,
+  } = snap;
+  const sortedAssumptions = [...snapAssumptions].sort((a, b) => a.confidence - b.confidence);
 
   const weights = normalizedWeights(snapValues);
   const sortedJournal = [...snapJournal].sort((a, b) => a.date.localeCompare(b.date));
@@ -103,6 +113,59 @@ export function PrintExport() {
               </tr>
             </tbody>
           </table>
+        </div>
+      </Card>
+
+      <Card>
+        <SectionTitle title="Blind spots" />
+        <div className="mb-4">
+          <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+            Premortems ({snapPremortems.length})
+          </p>
+          {snapPremortems.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">None logged.</p>
+          ) : (
+            <div className="space-y-2">
+              {snapPremortems.map((p) => {
+                const scenario = snapScenarios.find((s) => s.id === p.scenarioId);
+                return (
+                  <div key={p.id} className="border-b border-slate-100 pb-2 text-sm dark:border-slate-700/60">
+                    <p className="font-medium text-slate-800 dark:text-slate-100">
+                      {scenario ? scenario.name : 'General'} — {formatDateTime(p.createdAt)}
+                    </p>
+                    <p className="text-slate-600 dark:text-slate-400">{p.text}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div>
+          <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+            Assumption audit ({sortedAssumptions.length}), weakest first
+          </p>
+          {sortedAssumptions.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">None logged.</p>
+          ) : (
+            <table className="w-full border-collapse text-sm">
+              <tbody>
+                {sortedAssumptions.map((a) => {
+                  const scenario = snapScenarios.find((s) => s.id === a.scenarioId);
+                  return (
+                    <tr key={a.id}>
+                      <td className="border-b border-slate-100 py-1.5 pr-3 text-slate-700 dark:border-slate-700/60 dark:text-slate-300">
+                        {a.text}
+                        {scenario && <span className="text-slate-400"> ({scenario.name})</span>}
+                      </td>
+                      <td className="border-b border-slate-100 py-1.5 text-right font-semibold text-slate-800 dark:border-slate-700/60 dark:text-slate-100">
+                        {a.confidence}%
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
       </Card>
 

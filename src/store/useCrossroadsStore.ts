@@ -1,12 +1,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
+  Assumption,
   BranchSplit,
   ContractDraftFields,
   CrossroadsState,
   CustomTimelineData,
   EditFieldType,
   JournalEntry,
+  PremortemEntry,
   PresetId,
   Scenario,
 } from '../types';
@@ -48,6 +50,13 @@ interface StoreActions {
 
   addJournalEntry: (entry: Omit<JournalEntry, 'id' | 'createdAt'>) => void;
   removeJournalEntry: (id: string) => void;
+
+  addAssumption: (text: string, confidence: number, scenarioId?: string) => void;
+  updateAssumptionConfidence: (id: string, confidence: number) => void;
+  removeAssumption: (id: string) => void;
+
+  addPremortem: (text: string, scenarioId?: string) => void;
+  removePremortem: (id: string) => void;
 
   startContract: (patch: ContractDraftFields & { coolingOffHours?: number }) => void;
   updateContractDraft: (patch: Partial<ContractDraftFields>) => void;
@@ -92,6 +101,8 @@ function initialState(): CrossroadsState {
     resultsFirstViewedAt: null,
     initialLeaderScenarioId: null,
     journal: [],
+    assumptions: [],
+    premortems: [],
     contract: null,
     trial: null,
     activePreset: null,
@@ -114,6 +125,8 @@ function blankModelFields(): Pick<
   | 'resultsFirstViewedAt'
   | 'initialLeaderScenarioId'
   | 'journal'
+  | 'assumptions'
+  | 'premortems'
   | 'contract'
   | 'trial'
   | 'activePreset'
@@ -127,6 +140,8 @@ function blankModelFields(): Pick<
     resultsFirstViewedAt: null,
     initialLeaderScenarioId: null,
     journal: [],
+    assumptions: [],
+    premortems: [],
     contract: null,
     trial: null,
     activePreset: null,
@@ -348,6 +363,42 @@ export const useCrossroadsStore = create<CrossroadsStore>()(
       removeJournalEntry: (id) =>
         set((state) => ({
           journal: state.journal.filter((j) => j.id !== id),
+          updatedAt: nowIso(),
+        })),
+
+      addAssumption: (text, confidence, scenarioId) =>
+        set((state) => ({
+          assumptions: [
+            { id: newId(), text, confidence, scenarioId, createdAt: nowIso() } satisfies Assumption,
+            ...state.assumptions,
+          ],
+          updatedAt: nowIso(),
+        })),
+
+      updateAssumptionConfidence: (id, confidence) =>
+        set((state) => ({
+          assumptions: state.assumptions.map((a) => (a.id === id ? { ...a, confidence } : a)),
+          updatedAt: nowIso(),
+        })),
+
+      removeAssumption: (id) =>
+        set((state) => ({
+          assumptions: state.assumptions.filter((a) => a.id !== id),
+          updatedAt: nowIso(),
+        })),
+
+      addPremortem: (text, scenarioId) =>
+        set((state) => ({
+          premortems: [
+            { id: newId(), text, scenarioId, createdAt: nowIso() } satisfies PremortemEntry,
+            ...state.premortems,
+          ],
+          updatedAt: nowIso(),
+        })),
+
+      removePremortem: (id) =>
+        set((state) => ({
+          premortems: state.premortems.filter((p) => p.id !== id),
           updatedAt: nowIso(),
         })),
 
@@ -597,7 +648,7 @@ export const useCrossroadsStore = create<CrossroadsStore>()(
     }),
     {
       name: 'crossroads-decision-store',
-      version: 4,
+      version: 5,
     },
   ),
 );

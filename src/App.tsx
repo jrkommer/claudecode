@@ -6,6 +6,7 @@ import { ValuesElicitation } from './components/ValuesElicitation';
 import { ScenarioGrid } from './components/ScenarioGrid';
 import { ProbabilityPanel } from './components/ProbabilityPanel';
 import { ResultsSummary } from './components/ResultsSummary';
+import { BlindSpots } from './components/BlindSpots';
 import { EvidenceJournal } from './components/EvidenceJournal';
 import { CommitmentContract } from './components/CommitmentContract';
 import { TimelineChart } from './components/TimelineChart';
@@ -22,6 +23,7 @@ const BASE_TABS = [
   { id: 'scenarios', label: 'Scenarios' },
   { id: 'probabilities', label: 'Probabilities' },
   { id: 'results', label: 'Results & Bias' },
+  { id: 'blindspots', label: 'Blind Spots' },
   { id: 'journal', label: 'Evidence Journal' },
   { id: 'contract', label: 'Commitment' },
   { id: 'timeline', label: 'Timeline' },
@@ -142,6 +144,7 @@ function AppShell() {
         {tab === 'scenarios' && <ScenarioGrid />}
         {tab === 'probabilities' && <ProbabilityPanel />}
         {tab === 'results' && <ResultsSummary />}
+        {tab === 'blindspots' && <BlindSpots />}
         {tab === 'journal' && <EvidenceJournal />}
         {tab === 'contract' && <CommitmentContract />}
         {tab === 'timeline' && <TimelineChart />}

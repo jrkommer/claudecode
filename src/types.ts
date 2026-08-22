@@ -105,6 +105,24 @@ export interface CustomTimelineData {
   calloutAnnotation?: string;
 }
 
+// Blind-spot tools: deliberately kept outside the scoring math. Forcing
+// premortems and assumption confidence into the weighted-score model would
+// just manufacture new false precision instead of surfacing what's missing.
+export interface Assumption {
+  id: string;
+  text: string;
+  confidence: number; // 0-100: how sure you are this actually holds true
+  scenarioId?: string; // optional link to a specific scenario
+  createdAt: string;
+}
+
+export interface PremortemEntry {
+  id: string;
+  scenarioId?: string; // optional link; absent = decision-level premortem
+  text: string;
+  createdAt: string;
+}
+
 export type PresetId = 'divorce-recovery';
 
 export interface CrossroadsState {
@@ -115,6 +133,8 @@ export interface CrossroadsState {
   resultsFirstViewedAt: string | null;
   initialLeaderScenarioId: string | null;
   journal: JournalEntry[];
+  assumptions: Assumption[];
+  premortems: PremortemEntry[];
   contract: Contract | null;
   trial: Trial | null;
   activePreset: PresetId | null;
