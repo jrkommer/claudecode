@@ -18,6 +18,8 @@ export function ValuesElicitation() {
   const [description, setDescription] = useState('');
 
   const weights = normalizedWeights(values);
+  const displayedTotal = values.reduce((sum, v) => sum + Math.round(weights[v.id] ?? 0), 0);
+  const diff = 100 - displayedTotal;
 
   function handleAdd() {
     if (!name.trim()) return;
@@ -113,6 +115,31 @@ export function ValuesElicitation() {
           <p className="text-sm text-slate-500 dark:text-slate-400">No values yet. Add at least two to continue.</p>
         ) : (
           <div className="space-y-4">
+            <div
+              className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm ${
+                diff === 0
+                  ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/30'
+                  : 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/30'
+              }`}
+            >
+              <span
+                className={
+                  diff === 0
+                    ? 'font-semibold text-emerald-800 dark:text-emerald-200'
+                    : 'font-semibold text-amber-900 dark:text-amber-200'
+                }
+              >
+                Total: {displayedTotal}%
+                {diff !== 0 && (diff > 0 ? ` (${diff}% short)` : ` (${-diff}% over)`)}
+              </span>
+              {diff !== 0 && (
+                <span className="text-xs text-amber-800 dark:text-amber-300">
+                  Rounding only — each weight is normalized to a fraction of exactly 100% behind the scenes for
+                  scoring; the whole-number percentages shown here just don't always add back up when rounded
+                  individually.
+                </span>
+              )}
+            </div>
             {values.map((v) => (
               <div key={v.id} className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
                 <div className="mb-2 flex items-start justify-between gap-3">
