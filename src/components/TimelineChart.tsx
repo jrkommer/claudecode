@@ -13,6 +13,7 @@ import {
 import { Line } from 'react-chartjs-2';
 import { useCrossroadsStore } from '../store/useCrossroadsStore';
 import { projectScenario, replayHistory } from '../utils/timeline';
+import { computeIsDark, watchTheme } from '../utils/theme';
 import { Card, SectionTitle } from './ui';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
@@ -21,13 +22,8 @@ const CATEGORICAL_LIGHT = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100'];
 const CATEGORICAL_DARK = ['#3987e5', '#d95926', '#199e70', '#c98500'];
 
 function usePrefersDark(): boolean {
-  const [dark, setDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const listener = (e: MediaQueryListEvent) => setDark(e.matches);
-    mq.addEventListener('change', listener);
-    return () => mq.removeEventListener('change', listener);
-  }, []);
+  const [dark, setDark] = useState(computeIsDark);
+  useEffect(() => watchTheme(() => setDark(computeIsDark())), []);
   return dark;
 }
 
