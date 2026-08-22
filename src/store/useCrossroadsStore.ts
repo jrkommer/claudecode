@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
+  BranchSplit,
   ContractDraftFields,
   CrossroadsState,
   CustomTimelineData,
@@ -12,7 +13,13 @@ import type {
 import { newId } from '../utils/id';
 import { favoredScenarioForEdit } from '../utils/bias';
 import { leadingScenarioId } from '../utils/scoring';
-import { DIVORCE_PRESET_ID, DIVORCE_SCENARIOS, DIVORCE_TIMELINE, DIVORCE_VALUES } from '../data/divorcePreset';
+import {
+  DIVORCE_BRANCH_SPLIT,
+  DIVORCE_PRESET_ID,
+  DIVORCE_SCENARIOS,
+  DIVORCE_TIMELINE,
+  DIVORCE_VALUES,
+} from '../data/divorcePreset';
 
 const DEFAULT_COOLING_OFF_HOURS = 72;
 const AMENDMENT_COOLING_OFF_HOURS = 72;
@@ -35,6 +42,7 @@ interface StoreActions {
   updateScenarioScore: (scenarioId: string, valueId: string, score: number) => void;
   updateScenarioProbability: (scenarioId: string, probability: number) => void;
   removeScenario: (id: string) => void;
+  updateBranchSplit: (stay: number) => void;
 
   markResultsViewed: () => void;
 
@@ -85,6 +93,7 @@ function initialState(): CrossroadsState {
     trial: null,
     activePreset: null,
     customTimelineData: null,
+    branchSplit: null,
     createdAt: nowIso(),
     updatedAt: nowIso(),
   };
@@ -104,6 +113,7 @@ function blankModelFields(): Pick<
   | 'trial'
   | 'activePreset'
   | 'customTimelineData'
+  | 'branchSplit'
 > {
   return {
     values: [],
@@ -116,6 +126,7 @@ function blankModelFields(): Pick<
     trial: null,
     activePreset: null,
     customTimelineData: null,
+    branchSplit: null,
   };
 }
 
@@ -278,6 +289,37 @@ export const useCrossroadsStore = create<CrossroadsStore>()(
           scenarios: state.scenarios.filter((s) => s.id !== id),
           updatedAt: nowIso(),
         })),
+
+      updateBranchSplit: (stay) => {
+        const state = get();
+        const oldStay = state.branchSplit?.stay ?? 50;
+        const clamped = Math.max(0, Math.min(100, stay));
+        const postView = !!state.resultsFirstViewedAt;
+        const favoredBranch = postView
+          ? clamped > oldStay
+            ? 'stay'
+            : clamped < oldStay
+              ? 'leave'
+              : undefined
+          : undefined;
+        const next: BranchSplit = { stay: clamped, leave: 100 - clamped };
+        set((s) => ({
+          branchSplit: next,
+          editHistory: [
+            ...s.editHistory,
+            {
+              id: newId(),
+              timestamp: nowIso(),
+              fieldType: 'branch-split' as EditFieldType,
+              oldValue: oldStay,
+              newValue: clamped,
+              postView,
+              favoredBranch,
+            },
+          ],
+          updatedAt: nowIso(),
+        }));
+      },
 
       markResultsViewed: () =>
         set((state) => {
@@ -529,6 +571,7 @@ export const useCrossroadsStore = create<CrossroadsStore>()(
             scenarios,
             activePreset: presetId,
             customTimelineData: DIVORCE_TIMELINE,
+            branchSplit: DIVORCE_BRANCH_SPLIT,
             updatedAt: nowIso(),
           };
         }),
@@ -545,7 +588,7 @@ export const useCrossroadsStore = create<CrossroadsStore>()(
     }),
     {
       name: 'crossroads-decision-store',
-      version: 2,
+      version: 3,
     },
   ),
 );

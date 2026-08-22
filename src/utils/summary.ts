@@ -39,7 +39,9 @@ export function biggestLiveVariable(
   const value = values.find((v) => v.id === edit.valueId);
 
   let label: string;
-  if (edit.fieldType === 'scenario-probability' && scenario) {
+  if (edit.fieldType === 'branch-split') {
+    label = 'the overall odds you put on leaving vs. staying';
+  } else if (edit.fieldType === 'scenario-probability' && scenario) {
     label = `the probability you assign to "${scenario.name}"`;
   } else if (edit.fieldType === 'scenario-score' && scenario && value) {
     label = `how you're scoring "${scenario.name}" on "${value.name}"`;

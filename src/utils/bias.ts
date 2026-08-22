@@ -110,24 +110,34 @@ export interface StreakAnalysis {
   message: string;
 }
 
-// Groups a scenario by its branch when one is set (e.g. stay/leave), or by
-// its own id otherwise — so the streak check works whether or not the
-// scenarios represent a binary fork.
-function groupKeyFor(scenario: Scenario | undefined): string | null {
-  if (!scenario) return null;
-  return scenario.branch ?? scenario.id;
+// Groups an edit by branch when one applies (a direct branch-split edit, or
+// a scenario edit resolved via that scenario's branch tag), or by the
+// scenario's own id otherwise — so the streak check works whether or not
+// the scenarios represent a binary fork.
+function groupKeyForEdit(edit: EditEvent, scenarioById: Map<string, Scenario>): string | null {
+  if (edit.favoredBranch) return edit.favoredBranch;
+  if (edit.favoredScenarioId) {
+    const scenario = scenarioById.get(edit.favoredScenarioId);
+    return scenario ? (scenario.branch ?? scenario.id) : null;
+  }
+  return null;
 }
 
-function groupLabelFor(scenario: Scenario | undefined): string | null {
-  if (!scenario) return null;
-  if (scenario.branch === 'stay') return 'staying';
-  if (scenario.branch === 'leave') return 'leaving';
-  return `"${scenario.name}"`;
+function groupLabelForEdit(edit: EditEvent, scenarioById: Map<string, Scenario>): string | null {
+  const branch = edit.favoredBranch ?? scenarioById.get(edit.favoredScenarioId ?? '')?.branch;
+  if (branch === 'stay') return 'staying';
+  if (branch === 'leave') return 'leaving';
+  if (edit.favoredScenarioId) {
+    const name = scenarioById.get(edit.favoredScenarioId)?.name;
+    return name ? `"${name}"` : null;
+  }
+  return null;
 }
 
 // Looks at the trailing run of attributable post-view edits (most recent
-// first) and flags it when the last STREAK_THRESHOLD+ of them all favor the
-// same branch/scenario, regardless of overall share. Never blocks edits —
+// first) — scenario edits and top-level branch-split edits alike — and
+// flags it when the last STREAK_THRESHOLD+ of them all favor the same
+// branch/scenario, regardless of overall share. Never blocks edits —
 // purely informational. `confidant` lets callers phrase the closing
 // question for the domain (e.g. "your therapist" vs "someone you trust").
 export function analyzeRecentStreak(
@@ -137,25 +147,25 @@ export function analyzeRecentStreak(
 ): StreakAnalysis | null {
   const scenarioById = new Map(scenarios.map((s) => [s.id, s]));
   const attributed = editHistory
-    .filter((e) => e.postView && e.favoredScenarioId)
+    .filter((e) => e.postView && (e.favoredScenarioId || e.favoredBranch))
     .slice()
     .reverse(); // most recent first
 
   if (attributed.length === 0) return null;
 
-  const firstGroup = groupKeyFor(scenarioById.get(attributed[0].favoredScenarioId!));
+  const firstGroup = groupKeyForEdit(attributed[0], scenarioById);
   if (!firstGroup) return null;
 
   let streak = 0;
   for (const edit of attributed) {
-    const group = groupKeyFor(scenarioById.get(edit.favoredScenarioId!));
+    const group = groupKeyForEdit(edit, scenarioById);
     if (group !== firstGroup) break;
     streak += 1;
   }
 
   if (streak < STREAK_THRESHOLD) return null;
 
-  const label = groupLabelFor(scenarioById.get(attributed[0].favoredScenarioId!)) ?? 'one option';
+  const label = groupLabelForEdit(attributed[0], scenarioById) ?? 'one option';
   const message = `Your last ${streak} edits all moved the model toward ${label}. This may be clarity arriving — or a thumb on the scale. Two questions: Is new evidence driving these edits, or the same feeling? Worth naming to ${confidant}.`;
 
   return { streak, groupLabel: label, message };

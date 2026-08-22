@@ -1,4 +1,4 @@
-import type { CustomTimelineData, ValueItem, TimelineWaypoint } from '../types';
+import type { BranchSplit, CustomTimelineData, ValueItem, TimelineWaypoint } from '../types';
 
 export const DIVORCE_PRESET_ID = 'divorce-recovery' as const;
 
@@ -6,6 +6,10 @@ export const DIVORCE_EXAMPLE_BANNER =
   'Example values — one real person\'s model. Replace with yours.';
 
 export const DIVORCE_PROBABILITY_BANNER = 'Illustrative — your odds are yours.';
+
+// Seeded from the example's own per-scenario probabilities, normalized:
+// stay-branch sum (20+40+30=90) vs leave-branch sum (65), out of 155 total.
+export const DIVORCE_BRANCH_SPLIT: BranchSplit = { stay: 58, leave: 42 };
 
 export const DIVORCE_VALUES: Omit<ValueItem, 'id'>[] = [
   { name: "Kids' wellbeing", weight: 25 },

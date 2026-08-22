@@ -21,7 +21,7 @@ export interface Scenario {
   probabilityHint?: string; // overrides the category base-rate hint when set
 }
 
-export type EditFieldType = 'value-weight' | 'scenario-score' | 'scenario-probability';
+export type EditFieldType = 'value-weight' | 'scenario-score' | 'scenario-probability' | 'branch-split';
 
 export interface EditEvent {
   id: string;
@@ -33,6 +33,15 @@ export interface EditEvent {
   newValue: number;
   postView: boolean; // true if made after results were first viewed
   favoredScenarioId?: string; // scenario whose weighted rank this edit improved, if any
+  favoredBranch?: ScenarioBranch; // set instead of favoredScenarioId for branch-split edits
+}
+
+// Top-level split answering "out of 100 possible futures, how many end in
+// each branch?" — the first question in the branch expected-value
+// calculation. Only meaningful when scenarios carry a `branch` tag.
+export interface BranchSplit {
+  stay: number;
+  leave: number;
 }
 
 export interface JournalEntry {
@@ -110,6 +119,7 @@ export interface CrossroadsState {
   trial: Trial | null;
   activePreset: PresetId | null;
   customTimelineData: CustomTimelineData | null;
+  branchSplit: BranchSplit | null;
   createdAt: string;
   updatedAt: string;
 }
