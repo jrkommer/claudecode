@@ -24,19 +24,54 @@ export function weightedScore(scenario: Scenario, values: ValueItem[]): number {
   return total;
 }
 
-// Expected value = weighted score * user-assigned probability, 0-10 scale.
-export function expectedValue(scenario: Scenario, values: ValueItem[]): number {
-  return weightedScore(scenario, values) * (scenario.probability / 100);
+// A scenario's likelihood relative to the other scenarios sharing its
+// branch, renormalized to sum to 100% within that branch. Shared by
+// effectiveProbability and branchExpectedValue so the two stay consistent.
+function relativeLikelihoodWithinBranch(scenario: Scenario, branchMembers: Scenario[]): number {
+  if (branchMembers.length <= 1) return 1;
+  const probSum = branchMembers.reduce((sum, s) => sum + Math.max(0, s.probability), 0);
+  return probSum > 0 ? Math.max(0, scenario.probability) / probSum : 1 / branchMembers.length;
+}
+
+// The probability actually used for expected-value math. When a scenario
+// belongs to a branch and a top-level branchSplit answer exists, this
+// composes the two questions — P(branch) x relative-likelihood-within-
+// branch — instead of the scenario's own (now relative) probability field.
+// Falls back to the scenario's raw probability when there's no branch or
+// no branchSplit yet, so ungrouped/generic scenarios are unaffected.
+export function effectiveProbability(
+  scenario: Scenario,
+  scenarios: Scenario[],
+  branchSplit: BranchSplit | null | undefined,
+): number {
+  if (!scenario.branch || !branchSplit) return scenario.probability;
+  const members = scenarios.filter((s) => s.branch === scenario.branch);
+  return branchSplit[scenario.branch] * relativeLikelihoodWithinBranch(scenario, members);
+}
+
+// Expected value = weighted score * effective probability, 0-10 scale.
+// Pass `scenarios` + `branchSplit` so a branch-tagged scenario's expected
+// value reflects the top-level stay/leave split; omit them (or pass no
+// branchSplit) to use the scenario's own probability directly.
+export function expectedValue(
+  scenario: Scenario,
+  values: ValueItem[],
+  scenarios?: Scenario[],
+  branchSplit?: BranchSplit | null,
+): number {
+  const probability = scenarios ? effectiveProbability(scenario, scenarios, branchSplit) : scenario.probability;
+  return weightedScore(scenario, values) * (probability / 100);
 }
 
 export function rankScenarios(
   scenarios: Scenario[],
   values: ValueItem[],
   by: 'weighted' | 'expected' = 'expected',
+  branchSplit?: BranchSplit | null,
 ): Scenario[] {
   return [...scenarios].sort((a, b) => {
-    const scoreA = by === 'weighted' ? weightedScore(a, values) : expectedValue(a, values);
-    const scoreB = by === 'weighted' ? weightedScore(b, values) : expectedValue(b, values);
+    const scoreA = by === 'weighted' ? weightedScore(a, values) : expectedValue(a, values, scenarios, branchSplit);
+    const scoreB = by === 'weighted' ? weightedScore(b, values) : expectedValue(b, values, scenarios, branchSplit);
     return scoreB - scoreA;
   });
 }
@@ -58,11 +93,10 @@ export function branchExpectedValue(
   (['stay', 'leave'] as const).forEach((branch) => {
     const members = scenarios.filter((s) => s.branch === branch);
     if (members.length === 0) return;
-    const probSum = members.reduce((sum, s) => sum + Math.max(0, s.probability), 0);
-    const branchWeightedScore = members.reduce((sum, s) => {
-      const relativeLikelihood = probSum > 0 ? Math.max(0, s.probability) / probSum : 1 / members.length;
-      return sum + relativeLikelihood * weightedScore(s, values);
-    }, 0);
+    const branchWeightedScore = members.reduce(
+      (sum, s) => sum + relativeLikelihoodWithinBranch(s, members) * weightedScore(s, values),
+      0,
+    );
     result[branch] = (branchSplit[branch] / 100) * branchWeightedScore;
   });
   return result;
@@ -72,8 +106,9 @@ export function leadingScenarioId(
   scenarios: Scenario[],
   values: ValueItem[],
   by: 'weighted' | 'expected' = 'expected',
+  branchSplit?: BranchSplit | null,
 ): string | null {
   if (scenarios.length === 0) return null;
-  const ranked = rankScenarios(scenarios, values, by);
+  const ranked = rankScenarios(scenarios, values, by, branchSplit);
   return ranked[0]?.id ?? null;
 }

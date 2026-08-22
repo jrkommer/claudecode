@@ -46,6 +46,9 @@ function AppShell() {
   const importState = useCrossroadsStore((s) => s.importState);
   const resetAll = useCrossroadsStore((s) => s.resetAll);
   const hasTrajectories = useCrossroadsStore((s) => s.customTimelineData !== null);
+  const liveRefreshEnabled = useCrossroadsStore((s) => s.liveRefreshEnabled);
+  const setLiveRefreshEnabled = useCrossroadsStore((s) => s.setLiveRefreshEnabled);
+  const refreshNow = useCrossroadsStore((s) => s.refreshNow);
 
   const tabs = hasTrajectories ? [...BASE_TABS, TRAJECTORIES_TAB, ...TAIL_TABS] : [...BASE_TABS, ...TAIL_TABS];
 
@@ -83,7 +86,27 @@ function AppShell() {
                 A structured thinking tool for major life decisions. Everything stays on this device.
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <label
+                className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:border-slate-600 dark:text-slate-300"
+                title="When off, Results, Bias, Summary and Export only refresh when you (re)enter that tab or click Refresh — not on every edit elsewhere."
+              >
+                <input
+                  type="checkbox"
+                  checked={liveRefreshEnabled}
+                  onChange={(e) => setLiveRefreshEnabled(e.target.checked)}
+                  className="h-3.5 w-3.5 accent-teal-600"
+                />
+                Live updates
+              </label>
+              <Button
+                variant="secondary"
+                onClick={() => refreshNow()}
+                disabled={liveRefreshEnabled}
+                className="disabled:opacity-40"
+              >
+                Refresh
+              </Button>
               <Button variant="secondary" onClick={() => downloadStateAsJson(useCrossroadsStore.getState())}>
                 Export backup
               </Button>

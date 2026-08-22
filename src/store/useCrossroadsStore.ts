@@ -68,6 +68,9 @@ interface StoreActions {
   loadPreset: (presetId: PresetId) => void;
   clearModel: () => void;
 
+  setLiveRefreshEnabled: (enabled: boolean) => void;
+  refreshNow: () => void;
+
   resetAll: () => void;
   importState: (state: CrossroadsState) => void;
 }
@@ -94,6 +97,8 @@ function initialState(): CrossroadsState {
     activePreset: null,
     customTimelineData: null,
     branchSplit: null,
+    liveRefreshEnabled: false,
+    refreshTick: 0,
     createdAt: nowIso(),
     updatedAt: nowIso(),
   };
@@ -326,7 +331,7 @@ export const useCrossroadsStore = create<CrossroadsStore>()(
           if (state.resultsFirstViewedAt) return state;
           return {
             resultsFirstViewedAt: nowIso(),
-            initialLeaderScenarioId: leadingScenarioId(state.scenarios, state.values),
+            initialLeaderScenarioId: leadingScenarioId(state.scenarios, state.values, 'expected', state.branchSplit),
             updatedAt: nowIso(),
           };
         }),
@@ -582,17 +587,21 @@ export const useCrossroadsStore = create<CrossroadsStore>()(
           updatedAt: nowIso(),
         })),
 
+      setLiveRefreshEnabled: (enabled) => set(() => ({ liveRefreshEnabled: enabled })),
+
+      refreshNow: () => set((state) => ({ refreshTick: state.refreshTick + 1 })),
+
       resetAll: () => set(() => initialState()),
 
       importState: (imported) => set(() => imported),
     }),
     {
       name: 'crossroads-decision-store',
-      version: 3,
+      version: 4,
     },
   ),
 );
 
 export function useLeadingScenarioId(by: 'weighted' | 'expected' = 'expected') {
-  return useCrossroadsStore((s) => leadingScenarioId(s.scenarios, s.values, by));
+  return useCrossroadsStore((s) => leadingScenarioId(s.scenarios, s.values, by, s.branchSplit));
 }

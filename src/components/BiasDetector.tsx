@@ -1,14 +1,25 @@
-import { useCrossroadsStore } from '../store/useCrossroadsStore';
 import { analyzeBias, analyzeRecentStreak, MIN_ATTRIBUTED_EDITS } from '../utils/bias';
 import { Badge, Card, SectionTitle } from './ui';
+import type { EditEvent, PresetId, Scenario } from '../types';
 
-export function BiasDetector() {
-  const editHistory = useCrossroadsStore((s) => s.editHistory);
-  const scenarios = useCrossroadsStore((s) => s.scenarios);
-  const initialLeaderScenarioId = useCrossroadsStore((s) => s.initialLeaderScenarioId);
-  const resultsFirstViewedAt = useCrossroadsStore((s) => s.resultsFirstViewedAt);
-  const activePreset = useCrossroadsStore((s) => s.activePreset);
+interface BiasDetectorProps {
+  editHistory: EditEvent[];
+  scenarios: Scenario[];
+  initialLeaderScenarioId: string | null;
+  resultsFirstViewedAt: string | null;
+  activePreset: PresetId | null;
+}
 
+// Takes its inputs as props (rather than selecting from the store itself)
+// so it always reflects the same snapshot ResultsSummary is showing —
+// live or frozen — instead of a possibly different moment in time.
+export function BiasDetector({
+  editHistory,
+  scenarios,
+  initialLeaderScenarioId,
+  resultsFirstViewedAt,
+  activePreset,
+}: BiasDetectorProps) {
   const analysis = analyzeBias(editHistory, scenarios, initialLeaderScenarioId);
   const confidant = activePreset === 'divorce-recovery' ? 'your therapist' : 'someone you trust';
   const streak = analyzeRecentStreak(editHistory, scenarios, confidant);

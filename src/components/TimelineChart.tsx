@@ -31,6 +31,7 @@ export function TimelineChart() {
   const values = useCrossroadsStore((s) => s.values);
   const scenarios = useCrossroadsStore((s) => s.scenarios);
   const editHistory = useCrossroadsStore((s) => s.editHistory);
+  const branchSplit = useCrossroadsStore((s) => s.branchSplit);
   const dark = usePrefersDark();
   const palette = dark ? CATEGORICAL_DARK : CATEGORICAL_LIGHT;
   const muted = dark ? '#898781' : '#898781';
@@ -50,7 +51,7 @@ export function TimelineChart() {
 
   const history = replayHistory(editHistory, scenarios, values);
   const focusScenario = scenarios.find((s) => s.id === focusScenarioId) ?? scenarios[0];
-  const projection = projectScenario(focusScenario, values);
+  const projection = projectScenario(focusScenario, values, scenarios, branchSplit);
 
   const historyData = {
     labels: history.map((p) => p.label),

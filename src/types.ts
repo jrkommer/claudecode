@@ -120,6 +120,11 @@ export interface CrossroadsState {
   activePreset: PresetId | null;
   customTimelineData: CustomTimelineData | null;
   branchSplit: BranchSplit | null;
+  // Display preference: when false (the default), Results/Bias/Summary/
+  // Export show a snapshot taken when that tab was last activated or
+  // refreshed, rather than updating on every keystroke elsewhere.
+  liveRefreshEnabled: boolean;
+  refreshTick: number;
   createdAt: string;
   updatedAt: string;
 }
