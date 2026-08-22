@@ -18,8 +18,10 @@ export function ValuesElicitation() {
   const [description, setDescription] = useState('');
 
   const weights = normalizedWeights(values);
-  const displayedTotal = values.reduce((sum, v) => sum + Math.round(weights[v.id] ?? 0), 0);
-  const diff = 100 - displayedTotal;
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+  const displayedTotal = round1(values.reduce((sum, v) => sum + round1(weights[v.id] ?? 0), 0));
+  const diff = round1(100 - displayedTotal);
+  const isBalanced = Math.abs(diff) < 0.05;
 
   function handleAdd() {
     if (!name.trim()) return;
@@ -80,7 +82,7 @@ export function ValuesElicitation() {
       <Card>
         <SectionTitle
           title="What matters to you?"
-          subtitle="List the values at stake in this decision (e.g. financial security, autonomy, relationships, health, growth). Then set a relative weight for each — how much it should count compared to the others. Weights are normalized to 100% automatically."
+          subtitle="List the values at stake in this decision (e.g. financial security, autonomy, relationships, health, growth). Then set a relative weight for each — drag the slider or type an exact number (half-point steps) — for how much it should count compared to the others. Weights are normalized to 100% automatically."
         />
 
         <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto]">
@@ -117,26 +119,25 @@ export function ValuesElicitation() {
           <div className="space-y-4">
             <div
               className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm ${
-                diff === 0
+                isBalanced
                   ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/30'
                   : 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/30'
               }`}
             >
               <span
                 className={
-                  diff === 0
+                  isBalanced
                     ? 'font-semibold text-emerald-800 dark:text-emerald-200'
                     : 'font-semibold text-amber-900 dark:text-amber-200'
                 }
               >
-                Total: {displayedTotal}%
-                {diff !== 0 && (diff > 0 ? ` (${diff}% short)` : ` (${-diff}% over)`)}
+                Total: {displayedTotal.toFixed(1)}%
+                {!isBalanced && (diff > 0 ? ` (${diff.toFixed(1)}% short)` : ` (${(-diff).toFixed(1)}% over)`)}
               </span>
-              {diff !== 0 && (
+              {!isBalanced && (
                 <span className="text-xs text-amber-800 dark:text-amber-300">
                   Rounding only — each weight is normalized to a fraction of exactly 100% behind the scenes for
-                  scoring; the whole-number percentages shown here just don't always add back up when rounded
-                  individually.
+                  scoring; the percentages shown here just don't always add back up when rounded individually.
                 </span>
               )}
             </div>
@@ -167,13 +168,26 @@ export function ValuesElicitation() {
                     type="range"
                     min={0}
                     max={100}
-                    step={1}
+                    step={0.5}
                     value={v.weight}
                     onChange={(e) => updateValueWeight(v.id, Number(e.target.value))}
                     className="h-2 flex-1 cursor-pointer accent-teal-600"
                   />
-                  <span className="w-20 shrink-0 text-right text-sm font-semibold text-slate-700 dark:text-slate-200">
-                    {weights[v.id]?.toFixed(0) ?? 0}%
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.5}
+                    value={v.weight}
+                    onChange={(e) => {
+                      const n = Number(e.target.value);
+                      if (Number.isNaN(n)) return;
+                      updateValueWeight(v.id, Math.max(0, Math.min(100, n)));
+                    }}
+                    className="w-16 shrink-0 rounded-lg border border-slate-300 bg-white px-2 py-1 text-right text-sm text-slate-900 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                  />
+                  <span className="w-16 shrink-0 text-right text-sm font-semibold text-slate-700 dark:text-slate-200">
+                    {weights[v.id]?.toFixed(1) ?? 0}%
                   </span>
                 </div>
               </div>
